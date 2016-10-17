@@ -2,7 +2,7 @@ package de.petendi.ethereum.signer;
 
 /*-
  * #%L
- * Ethereum Secure Proxy
+ * ethereum-offline-signer
  * %%
  * Copyright (C) 2016 P-ACS UG (haftungsbeschränkt)
  * %%
@@ -28,53 +28,63 @@ import org.kohsuke.args4j.ParserProperties;
 
 public class CmdLineResult {
 
-
-
     @Option(name = "--create",usage = "Create a new deterministic seed")
     private boolean create;
 
-    @Option(name ="--signwith", usage = "The private key to sign the transaction")
-    private String privateKey;
+    @Option(name = "--derive",usage = "Derive a key from a deterministic seed")
+    private boolean derive;
+
+    @Option(name = "--sign",usage = "Derive a transaction with a private key")
+    private boolean sign;
+
+
+    @Option(name = "--seed",usage = "The seed to derive a key")
+    private String seed;
+
+    @Option(name = "--iteration",usage = "Derivation iteration")
+    private int iteration;
+
+    @Option(name ="--key", usage = "The key to sign the transaction with")
+    private String key;
 
     @Option(name = "--transaction",usage = "The transaction to be signed")
     private String transaction;
 
-    @Option(name = "--derive",usage = "Derive a key")
-    private String deriveKey;
-
-    @Option(name = "--derivationIteration",usage = "Derivation iteration")
-    private int derivationIteration;
+    @Option(name = "--transactionDetails",usage = "The transaction whose details to be shown")
+    private String transactionDetails;
 
 
     public boolean isCreate() {
         return create;
     }
 
-
-
-    public String getPrivateKey() {
-        return privateKey;
+    public boolean isDerive() {
+        return derive;
     }
 
+    public boolean isSign() {
+        return sign;
+    }
 
+    public String getKey() {
+        return key;
+    }
 
     public String getTransaction() {
         return transaction;
     }
 
-
-    public String getDeriveKey() {
-        return deriveKey;
+    public String getSeed() {
+        return seed;
     }
 
-
-
-
-    public int getDerivationIteration() {
-        return derivationIteration;
+    public int getIteration() {
+        return iteration;
     }
 
-
+    public String getTransactionDetails() {
+        return transactionDetails;
+    }
 
     void parseArguments(String[] arguments) throws CmdLineException {
         CmdLineParser parser = new CmdLineParser(this);
@@ -85,7 +95,4 @@ public class CmdLineResult {
         CmdLineParser parser = new CmdLineParser(this, ParserProperties.defaults().withShowDefaults(false));
         parser.printUsage(System.out);
     }
-
-
-
 }

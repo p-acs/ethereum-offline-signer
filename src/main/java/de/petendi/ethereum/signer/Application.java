@@ -2,7 +2,7 @@ package de.petendi.ethereum.signer;
 
 /*-
  * #%L
- * Ethereum Secure Proxy
+ * ethereum-offline-signer
  * %%
  * Copyright (C) 2016 P-ACS UG (haftungsbeschränkt)
  * %%
@@ -26,12 +26,17 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.bitcoinj.core.NetworkParameters;
 import org.bitcoinj.crypto.DeterministicKey;
-import org.bitcoinj.wallet.*;
+import org.bitcoinj.wallet.DeterministicSeed;
+import org.bitcoinj.wallet.KeyChain;
+import org.bitcoinj.wallet.UnreadableWalletException;
+import org.bitcoinj.wallet.Wallet;
 import org.ethereum.core.Transaction;
 import org.ethereum.crypto.ECKey;
+import org.ethereum.util.ByteUtil;
 import org.kohsuke.args4j.CmdLineException;
 import org.spongycastle.util.encoders.Hex;
 
+import java.math.BigInteger;
 import java.security.SignatureException;
 
 
@@ -41,7 +46,9 @@ public class Application {
 
     public static void main(String[] args) throws UnreadableWalletException, SignatureException {
 
-     try {
+        Logger.getRootLogger().setLevel(Level.FATAL);
+
+        try {
             cmdLineResult = new CmdLineResult();
             cmdLineResult.parseArguments(args);
         } catch (CmdLineException e) {
@@ -51,17 +58,17 @@ public class Application {
             System.exit(-1);
             return;
         }
-        Logger.getRootLogger().setLevel(Level.FATAL);
 
-
-
-        if(cmdLineResult.isCreate()) {
+        if (cmdLineResult.isCreate()) {
             create();
-            return;
-        } else if(cmdLineResult.getDeriveKey() !=null) {
-            derive(cmdLineResult.getDeriveKey(),cmdLineResult.getDerivationIteration());
-        } else if(cmdLineResult.getPrivateKey() !=null) {
-            sign(cmdLineResult.getPrivateKey(),cmdLineResult.getTransaction());
+        } else if (cmdLineResult.isDerive()) {
+            derive(cmdLineResult.getSeed(), cmdLineResult.getIteration());
+        } else if (cmdLineResult.isSign()) {
+            sign(cmdLineResult.getKey(), cmdLineResult.getTransaction());
+        } else if(cmdLineResult.getTransactionDetails() != null) {
+            byte[] transactionBytes = Hex.decode(cmdLineResult.getTransactionDetails().replace("0x", ""));
+            Transaction transactionObj = new Transaction(transactionBytes);
+            printTransactionDetails(transactionObj);
         } else {
             System.out.println("Usage:");
             cmdLineResult.printExample();
@@ -72,66 +79,73 @@ public class Application {
 
     private static void sign(String privateKey, String transaction) throws SignatureException {
         byte[] privBytes = Hex.decode(privateKey);
-        byte[] transactionBytes = Hex.decode(transaction.replace("0x",""));
+        byte[] transactionBytes = Hex.decode(transaction.replace("0x", ""));
         Transaction transactionObj = new Transaction(transactionBytes);
         transactionObj.sign(ECKey.fromPrivate(privBytes));
-
         System.out.println("Signed transaction:");
-        System.out.println("0x"+Hex.toHexString(transactionObj.getEncodedRaw()));
-
-        ECKey ecKey = ECKey.signatureToKey(transactionObj.getRawHash(),transactionObj.getSignature().toBase64());
-        String address = "0x"+ org.spongycastle.util.encoders.Hex.toHexString(ecKey.getAddress());
-        System.out.println("Signed by");
-        System.out.println(address);
-
+        System.out.println("0x" + Hex.toHexString(transactionObj.getEncodedRaw()));
+        System.out.println("");
+        printTransactionDetails(transactionObj);
     }
 
-    private static void derive(String deriveKey, int derivationIteration) throws UnreadableWalletException {
+    private static void derive(String seed, int iteration) throws UnreadableWalletException {
         Wallet wallet = Wallet.fromSeed(NetworkParameters.fromID(NetworkParameters.ID_MAINNET),
-                new DeterministicSeed(deriveKey,null,"",0));
+                new DeterministicSeed(seed, null, "", 0));
         DeterministicKey key = null;
-        for (int i = 0; i <= derivationIteration; i++) {
-            key = wallet.freshKey(KeyChain.KeyPurpose.AUTHENTICATION);
+        for (int i = 0; i <= iteration; i++) {
+            key = wallet.freshKey(KeyChain.KeyPurpose.RECEIVE_FUNDS);
         }
-        System.out.println("Iteration path " + key.getPathAsString());
         ECKey ecKey = ECKey.fromPrivate(key.getPrivKey());
-        System.out.println("Private key:");
-        System.out.println(Hex.toHexString(ecKey.getPrivKeyBytes()));
         System.out.println("Address: ");
-        System.out.println("0x"+Hex.toHexString(ecKey.getAddress()));
-
-
+        System.out.println("0x" + Hex.toHexString(ecKey.getAddress()));
+        System.out.println("Key:");
+        System.out.println(Hex.toHexString(ecKey.getPrivKeyBytes()));
     }
 
     private static void create() {
         Wallet wallet = new Wallet(NetworkParameters.fromID(NetworkParameters.ID_MAINNET));
         DeterministicSeed seed = wallet.getKeyChainSeed();
-
         System.out.println("Mnemonic:");
-
-        for(String mnemonc: seed.getMnemonicCode()) {
+        for (String mnemonc : seed.getMnemonicCode()) {
             System.out.print(mnemonc);
             System.out.print(" ");
         }
         System.out.println("");
-        byte [] seedBytes = seed.getSeedBytes();
+        byte[] seedBytes = seed.getSeedBytes();
         System.out.println("Seed bytes:");
         System.out.println(Hex.toHexString(seedBytes));
         ECKey fromBit = ECKey.fromPrivate(seedBytes);
         System.out.println("Root address:");
-        System.out.println("0x"+Hex.toHexString(fromBit.getAddress()));
+        System.out.println("0x" + Hex.toHexString(fromBit.getAddress()));
+    }
 
-        for (int i = 0; i < 10; i++) {
-            System.out.println("Iteration " + i);
-
-            DeterministicKey deterministicKey = wallet.freshKey(KeyChain.KeyPurpose.AUTHENTICATION);
-            System.out.println("Iteration path " + deterministicKey.getPathAsString());
-            ECKey ecKey = ECKey.fromPrivate(deterministicKey.getPrivKey());
-            System.out.println("Private key:");
-            System.out.println(Hex.toHexString(ecKey.getPrivKeyBytes()));
-            System.out.println("Address: ");
-            System.out.println("0x"+Hex.toHexString(ecKey.getAddress()));
+    private static final void printTransactionDetails(Transaction transaction) throws SignatureException {
+        System.out.println("Details:");
+        if(transaction.isContractCreation()) {
+            System.out.println("Contract creation");
+        } else {
+            System.out.println("To: " + "0x"+ Hex.toHexString(transaction.getReceiveAddress()));
         }
+        BigInteger nonce = fromHexString(ByteUtil.toHexString(transaction.getNonce()));
+        System.out.println("Nonce: " + nonce);
+        BigInteger value = fromHexString(ByteUtil.toHexString(transaction.getValue()));
+        System.out.println("Value: " + value);
+        BigInteger gasPrice = fromHexString(ByteUtil.toHexString(transaction.getGasPrice()));
+        System.out.println("Gas price: " + gasPrice);
+        BigInteger gasLimit = fromHexString(ByteUtil.toHexString(transaction.getGasLimit()));
+        System.out.println("Gas limit: " + gasLimit);
+        if(transaction.getSignature() != null) {
+            ECKey ecKey = ECKey.signatureToKey(transaction.getRawHash(),transaction.getSignature().toBase64());
+            String signer = "0x"+ org.spongycastle.util.encoders.Hex.toHexString(ecKey.getAddress());
+            System.out.println("Signed by: " + signer);
+        } else {
+            System.out.println("Unsigned");
+        }
+
+    }
+
+    private static final BigInteger fromHexString(String hexString) {
+        return new BigInteger(hexString.replace("0x",""), 16);
     }
 
 
