@@ -22,6 +22,11 @@ package de.petendi.ethereum.signer;
  */
 
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.WriterException;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.bitcoinj.core.NetworkParameters;
@@ -36,6 +41,11 @@ import org.ethereum.util.ByteUtil;
 import org.kohsuke.args4j.CmdLineException;
 import org.spongycastle.util.encoders.Hex;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.security.SignatureException;
 
@@ -44,7 +54,7 @@ public class Application {
 
     private static CmdLineResult cmdLineResult;
 
-    public static void main(String[] args) throws UnreadableWalletException, SignatureException {
+    public static void main(String[] args) throws UnreadableWalletException, SignatureException, IOException {
 
         Logger.getRootLogger().setLevel(Level.FATAL);
 
@@ -77,18 +87,20 @@ public class Application {
 
     }
 
-    private static void sign(String privateKey, String transaction) throws SignatureException {
+    private static void sign(String privateKey, String transaction) throws SignatureException, IOException {
         byte[] privBytes = Hex.decode(privateKey);
         byte[] transactionBytes = Hex.decode(transaction.replace("0x", ""));
         Transaction transactionObj = new Transaction(transactionBytes);
         transactionObj.sign(ECKey.fromPrivate(privBytes));
         System.out.println("Signed transaction:");
-        System.out.println("0x" + Hex.toHexString(transactionObj.getEncodedRaw()));
+        String transactionData = "0x" + Hex.toHexString(transactionObj.getEncodedRaw());
+        System.out.println(transactionData);
         System.out.println("");
         printTransactionDetails(transactionObj);
+        writeQR(transactionData,"transaction_0x" +Hex.toHexString(transactionObj.getRawHash())+ ".png");
     }
 
-    private static void derive(String seed, int iteration) throws UnreadableWalletException {
+    private static void derive(String seed, int iteration) throws UnreadableWalletException, IOException {
         Wallet wallet = Wallet.fromSeed(NetworkParameters.fromID(NetworkParameters.ID_MAINNET),
                 new DeterministicSeed(seed, null, "", 0));
         DeterministicKey key = null;
@@ -96,13 +108,17 @@ public class Application {
             key = wallet.freshKey(KeyChain.KeyPurpose.RECEIVE_FUNDS);
         }
         ECKey ecKey = ECKey.fromPrivate(key.getPrivKey());
+        String address = "0x" + Hex.toHexString(ecKey.getAddress());
         System.out.println("Address: ");
-        System.out.println("0x" + Hex.toHexString(ecKey.getAddress()));
+        System.out.println(address);
+        String keyString = Hex.toHexString(ecKey.getPrivKeyBytes());
         System.out.println("Key:");
-        System.out.println(Hex.toHexString(ecKey.getPrivKeyBytes()));
+        System.out.println(keyString);
+        writeQR(address,address + ".png");
+        writeQR(keyString,address + "_key.png");
     }
 
-    private static void create() {
+    private static void create() throws IOException {
         Wallet wallet = new Wallet(NetworkParameters.fromID(NetworkParameters.ID_MAINNET));
         DeterministicSeed seed = wallet.getKeyChainSeed();
         System.out.println("Mnemonic:");
@@ -113,10 +129,11 @@ public class Application {
         System.out.println("");
         byte[] seedBytes = seed.getSeedBytes();
         System.out.println("Seed bytes:");
-        System.out.println(Hex.toHexString(seedBytes));
+        System.out.println();
         ECKey fromBit = ECKey.fromPrivate(seedBytes);
+        String address = "0x" + Hex.toHexString(fromBit.getAddress());
         System.out.println("Root address:");
-        System.out.println("0x" + Hex.toHexString(fromBit.getAddress()));
+        System.out.println(address);
     }
 
     private static final void printTransactionDetails(Transaction transaction) throws SignatureException {
@@ -142,6 +159,26 @@ public class Application {
             System.out.println("Unsigned");
         }
 
+    }
+
+    private static final void writeQR(String data,String filename) throws IOException {
+        QRCodeWriter writer = new QRCodeWriter();
+        int size = 250;
+        BitMatrix matrix;
+        try {
+            matrix = writer.encode(data, BarcodeFormat.QR_CODE, size, size);
+        } catch (WriterException e) {
+            throw new IllegalArgumentException(e);
+        }
+        BufferedImage image = MatrixToImageWriter.toBufferedImage(matrix);
+        FileOutputStream fileOutputStream = new FileOutputStream(new File(filename));
+        try {
+            ImageIO.write(image, "png", fileOutputStream);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        } finally {
+            fileOutputStream.close();
+        }
     }
 
     private static final BigInteger fromHexString(String hexString) {
