@@ -34,7 +34,7 @@ public class CmdLineResult {
     @Option(name = "--derive",usage = "Derive a key from a deterministic seed")
     private boolean derive;
 
-    @Option(name = "--sign",usage = "Derive a transaction with a private key")
+    @Option(name = "--sign",usage = "Sign a transaction with a key")
     private boolean sign;
 
 
