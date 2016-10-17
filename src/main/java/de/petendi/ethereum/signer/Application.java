@@ -93,11 +93,11 @@ public class Application {
         Transaction transactionObj = new Transaction(transactionBytes);
         transactionObj.sign(ECKey.fromPrivate(privBytes));
         System.out.println("Signed transaction:");
-        String transactionData = "0x" + Hex.toHexString(transactionObj.getEncodedRaw());
+        String transactionData = "0x" + Hex.toHexString(transactionObj.getEncoded());
         System.out.println(transactionData);
         System.out.println("");
         printTransactionDetails(transactionObj);
-        writeQR(transactionData,"transaction_0x" +Hex.toHexString(transactionObj.getRawHash())+ ".png");
+        writeQR(transactionData,"transaction_0x" +Hex.toHexString(transactionObj.getHash())+ ".png");
     }
 
     private static void derive(String seed, int iteration) throws UnreadableWalletException, IOException {
