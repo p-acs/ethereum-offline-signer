@@ -122,14 +122,14 @@ public class Application {
         Wallet wallet = new Wallet(NetworkParameters.fromID(NetworkParameters.ID_MAINNET));
         DeterministicSeed seed = wallet.getKeyChainSeed();
         System.out.println("Mnemonic:");
-        for (String mnemonc : seed.getMnemonicCode()) {
-            System.out.print(mnemonc);
+        for (String mnemonic : seed.getMnemonicCode()) {
+            System.out.print(mnemonic);
             System.out.print(" ");
         }
         System.out.println("");
         byte[] seedBytes = seed.getSeedBytes();
         System.out.println("Seed bytes:");
-        System.out.println();
+        System.out.println(Hex.toHexString(seedBytes));
         ECKey fromBit = ECKey.fromPrivate(seedBytes);
         String address = "0x" + Hex.toHexString(fromBit.getAddress());
         System.out.println("Root address:");
